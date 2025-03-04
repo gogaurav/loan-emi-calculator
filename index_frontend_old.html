@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loan EMI Calculator</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Make sure Chart.js is loaded properly -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .result-box {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .table-responsive {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .table th {
+            position: sticky;
+            top: 0;
+            background-color: #f8f9fa;
+            z-index: 1;
+        }
+        .highlight-row {
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+        .additional-payment-row {
+            background-color: rgba(40, 167, 69, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container my-5">
+        <h1 class="text-center mb-4">Loan EMI Calculator</h1>
+        
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">Loan Details</h4>
+                    </div>
+                    <div class="card-body">
+                        <form id="loan-form">
+                            <div class="mb-3">
+                                <label for="principal" class="form-label">Principal Amount (₹)</label>
+                                <input type="number" class="form-control" id="principal" min="1" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="interest-rate" class="form-label">Interest Rate (% per annum)</label>
+                                <input type="number" class="form-control" id="interest-rate" min="0.1" step="0.01" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="tenure" class="form-label">Tenure (in months)</label>
+                                <input type="number" class="form-control" id="tenure" min="1" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="start-date" class="form-label">Start Date</label>
+                                <input type="date" class="form-control" id="start-date" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="custom-emi" class="form-label">Custom EMI Amount (₹) (Optional)</label>
+                                <input type="number" class="form-control" id="custom-emi" min="0" step="0.01">
+                                <small class="text-muted">Leave blank for default EMI calculation</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Calculate</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card" id="results-card" style="display: none;">
+                    <div class="card-header bg-success text-white">
+                        <h4 class="mb-0">Loan Summary</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="result-box">
+                            <div class="row">
+                                <div class="col-6">
+                                    <p><strong>Default EMI:</strong> <span id="default-emi"></span></p>
+                                    <p><strong>Actual EMI:</strong> <span id="actual-emi"></span></p>
+                                    <p><strong>Tenure:</strong> <span id="actual-tenure"></span></p>
+                                </div>
+                                <div class="col-6">
+                                    <p><strong>Total Interest:</strong> <span id="total-interest"></span></p>
+                                    <p><strong>Total Payment:</strong> <span id="total-payment"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <canvas id="pieChart" width="100" height="100"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-6">
+                <div class="card" id="schedule-card" style="display: none;">
+                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">Amortization Schedule</h4>
+                        <button class="btn btn-light btn-sm" id="download-btn">Download Schedule</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="schedule-table">
+                                <thead>
+                                    <tr>
+                                        <th>Month</th>
+                                        <th>Date</th>
+                                        <th>EMI (₹)</th>
+                                        <th>Principal (₹)</th>
+                                        <th>Interest (₹)</th>
+                                        <th>Extra Payment (₹)</th>
+                                        <th>Balance (₹)</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="schedule-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal for additional payment -->
+        <div class="modal fade" id="additionalPaymentModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Extra Payment</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="additional-payment-form">
+                            <input type="hidden" id="payment-date">
+                            <div class="mb-3">
+                                <label for="additional-amount" class="form-label">Additional Payment Amount (₹)</label>
+                                <input type="number" class="form-control" id="additional-amount" min="0" step="0.01" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Set today's date as default
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date();
+            const formattedDate = today.toISOString().split('T')[0];
+            document.getElementById('start-date').value = formattedDate;
+        });
+
+        // Global variables
+        let pieChart = null;
+        let loanSchedule = [];
+        let additionalPayments = {};
+
+        // Form submission
+        document.getElementById('loan-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            calculateEMI();
+        });
+
+        // Additional payment form submission
+        document.getElementById('additional-payment-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const date = document.getElementById('payment-date').value;
+            const amount = parseFloat(document.getElementById('additional-amount').value);
+            
+            additionalPayments[date] = amount;
+            
+            // Dismiss the modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('additionalPaymentModal'));
+            modal.hide();
+            
+            // Recalculate EMI with the new additional payment
+            calculateEMI();
+        });
+
+        // Download button click
+        document.getElementById('download-btn').addEventListener('click', function() {
+            downloadSchedule();
+        });
+
+        async function calculateEMI() {
+            const principal = parseFloat(document.getElementById('principal').value);
+            const interestRate = parseFloat(document.getElementById('interest-rate').value);
+            const tenure = parseInt(document.getElementById('tenure').value);
+            const customEmi = document.getElementById('custom-emi').value ? parseFloat(document.getElementById('custom-emi').value) : 0;
+            const startDate = document.getElementById('start-date').value;
+            
+            // API endpoint (change to your backend server URL)
+            const apiUrl = 'http://localhost:8080/calculate-emi';
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        principal,
+                        interest_rate: interestRate,
+                        tenure,
+                        custom_emi: customEmi,
+                        start_date: startDate,
+                        additional_payments: additionalPayments
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayResults(data);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('API call failed:', error);
+                alert('Failed to connect to the server. Please ensure the backend is running at http://localhost:8080');
+            }
+        }
+
+        function displayResults(data) {
+            // Show result cards
+            document.getElementById('results-card').style.display = 'block';
+            document.getElementById('schedule-card').style.display = 'block';
+            
+            // Update loan summary
+            document.getElementById('default-emi').textContent = formatCurrency(data.default_emi);
+            document.getElementById('actual-emi').textContent = formatCurrency(data.actual_emi);
+            document.getElementById('actual-tenure').textContent = `${data.total_months} months`;
+            document.getElementById('total-interest').textContent = formatCurrency(data.total_interest);
+            document.getElementById('total-payment').textContent = formatCurrency(data.total_payment);
+            
+            // Save the schedule data
+            loanSchedule = data.schedule;
+            
+            // Generate pie chart
+            generatePieChart(parseFloat(document.getElementById('principal').value), data.total_interest);
+            
+            // Display amortization schedule
+            displaySchedule(data.schedule);
+        }
+
+        function displaySchedule(schedule) {
+            const tableBody = document.getElementById('schedule-body');
+            tableBody.innerHTML = '';
+            
+            schedule.forEach((month, index) => {
+                const row = document.createElement('tr');
+                if (Object.keys(additionalPayments).includes(month.date)) {
+                    row.classList.add('additional-payment-row');
+                }
+                
+                row.innerHTML = `
+                    <td>${month.month}</td>
+                    <td>${formatDate(month.date)}</td>
+                    <td>${formatCurrency(month.emi)}</td>
+                    <td>${formatCurrency(month.principal)}</td>
+                    <td>${formatCurrency(month.interest)}</td>
+                    <td>${formatCurrency(month.additional_payment)}</td>
+                    <td>${formatCurrency(month.balance)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary add-payment-btn" data-date="${month.date}">
+                            Add Extra
+                        </button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Add event listeners for the "Add Extra" buttons
+            document.querySelectorAll('.add-payment-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const date = this.getAttribute('data-date');
+                    document.getElementById('payment-date').value = date;
+                    document.getElementById('additional-amount').value = additionalPayments[date] || '';
+                    
+                    // Show the modal
+                    const modal = new bootstrap.Modal(document.getElementById('additionalPaymentModal'));
+                    modal.show();
+                });
+            });
+        }
+
+        function generatePieChart(principal, totalInterest) {
+            const ctx = document.getElementById('pieChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (pieChart) {
+                pieChart.destroy();
+            }
+            
+            // Create new chart
+            pieChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Principal', 'Interest'],
+                    datasets: [{
+                        data: [principal, totalInterest],
+                        backgroundColor: ['#0d6efd', '#dc3545'],
+                        hoverBackgroundColor: ['#0a58ca', '#bb2d3b']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    return label + ': ' + formatCurrency(value);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function downloadSchedule() {
+            // API endpoint (change to your backend server URL)
+            const apiUrl = 'http://localhost:8080/download-schedule';
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        schedule: loanSchedule
+                    })
+                });
+                
+                if (response.ok) {
+                    // Convert the response to a blob
+                    const blob = await response.blob();
+                    
+                    // Create a URL for the blob
+                    const url = window.URL.createObjectURL(blob);
+                    
+                    // Create a temporary link element
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'amortization_schedule.xlsx';
+                    
+                    // Append the link to the body
+                    document.body.appendChild(a);
+                    
+                    // Click the link to trigger the download
+                    a.click();
+                    
+                    // Remove the link
+                    document.body.removeChild(a);
+                    
+                    // Release the blob URL
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    alert('Failed to download the schedule');
+                }
+            } catch (error) {
+                console.error('Download failed:', error);
+                alert('Failed to connect to the server');
+            }
+        }
+
+        // Helper functions
+        function formatCurrency(value) {
+            // Format as Indian Rupees (INR)
+            return new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+                maximumFractionDigits: 2
+            }).format(value);
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-IN', {
+                year: 'numeric',
+                month: 'short'
+            });
+        }
+    </script>
+</body>
+</html>
